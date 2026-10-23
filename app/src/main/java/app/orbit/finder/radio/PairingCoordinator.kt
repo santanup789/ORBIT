@@ -90,6 +90,7 @@ class PairingCoordinator(private val identity: IdentityStore,
     }.toString())
     fun message(key: String, packet: String) {
         runCatching {
+            require(packet.toByteArray(Charsets.UTF_8).size <= PairingFrames.MAX_BYTES) { "Pairing message too large" }
             val session = requireNotNull(sessions[key])
             require(System.currentTimeMillis() < session.deadline) { "Pairing request expired" }
             val outer = JSONObject(packet)

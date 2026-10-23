@@ -58,18 +58,28 @@ class FirebaseConnection(private val context: Context) {
                 listener = observer
                 ref.addValueEventListener(observer)
             }
-            val user = auth.currentUser
-            if (user != null) {
-                user.getIdToken(true).addOnCompleteListener { task ->
-                    if (task.isSuccessful) checkDatabase()
-                    else finish("Firebase sign-in could not be refreshed. Check internet access and retry.")
+            // Fail closed locally too: an unenforced backend must not be mistaken for
+            // a successful integrity check. No token value is logged or displayed.
+            com.google.firebase.appcheck.FirebaseAppCheck.getInstance(app).getAppCheckToken(false)
+                .addOnCompleteListener { attestation ->
+                    if (generation != attempt) return@addOnCompleteListener
+                    if (!attestation.isSuccessful) {
+                        finish("App verification failed. Use the official ORBIT release on a supported Android phone, then retry.")
+                        return@addOnCompleteListener
+                    }
+                    val user = auth.currentUser
+                    if (user != null) {
+                        user.getIdToken(true).addOnCompleteListener { task ->
+                            if (task.isSuccessful) checkDatabase()
+                            else finish("Firebase sign-in could not be refreshed. Check internet access and retry.")
+                        }
+                    } else {
+                        auth.signInAnonymously().addOnCompleteListener { task ->
+                            if (task.isSuccessful) checkDatabase()
+                            else finish("Firebase anonymous sign-in failed. Check internet access and the enabled sign-in provider.")
+                        }
+                    }
                 }
-            } else {
-                auth.signInAnonymously().addOnCompleteListener { task ->
-                    if (task.isSuccessful) checkDatabase()
-                    else finish("Firebase anonymous sign-in failed. Check internet access and the enabled sign-in provider.")
-                }
-            }
         } catch (_: Exception) {
             finish("Firebase configuration could not be used. Check the Android configuration and rebuild.")
         }

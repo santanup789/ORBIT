@@ -27,7 +27,7 @@
     <uses-feature android:name="android.hardware.wifi.rtt" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
-    <application android:name=".OrbitApplication" android:theme="@style/Theme.Orbit" android:label="ORBIT" android:icon="@drawable/ic_orbit" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true">
+    <application android:name=".OrbitApplication" android:theme="@style/Theme.Orbit" android:label="ORBIT" android:icon="@drawable/ic_orbit" android:allowBackup="false" android:usesCleartextTraffic="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true">
         <service android:name=".NearbyService" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

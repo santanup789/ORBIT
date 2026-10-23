@@ -6,9 +6,11 @@ Native Android friend-finding prototype built with Kotlin and Jetpack Compose. P
 
 **[Download the latest Android APK](https://github.com/santanup789/ORBIT/releases/latest/download/ORBIT-latest.apk)**
 
-The current build is **0.6.0**, a debug-signed testing APK, not a production or Play Store release. Install the same version on both phones. Android 8+ is required for the app; encrypted GPS sharing requires Android 12+. Android may ask you to allow installation from your browser. Only install from a source you trust.
+The current build is **0.6.1**, a release-signed, non-debuggable **prototype**, not a Play Store release or a certified safety product. Install the same version on both phones. Android 8+ is required for the app; encrypted GPS sharing requires Android 12+ and a device that passes Play Integrity device-integrity checks. Android may ask you to allow installation from your browser. Only install from a source you trust.
 
-The downloadable APK uses the ORBIT test Firebase backend. This is a prototype service with no availability guarantee. The source repository excludes its Android Firebase configuration and all signing keys.
+**Upgrading from a debug APK:** this release uses a different signing certificate. Android requires uninstalling the old debug build first, which erases your profile, paired friends and keys. Pair again afterward. Do not uninstall unless you accept that loss. Later releases signed with this release key can update in place.
+
+The downloadable APK uses the ORBIT test Firebase backend with App Check enforced for Authentication and Realtime Database. Older debug builds cannot use that online backend. This is a prototype service with no availability guarantee. The source repository excludes its Android Firebase configuration and all signing keys. See [security review](SECURITY-REVIEW.md).
 
 ## What it does
 
@@ -65,7 +67,8 @@ Without `app/google-services.json`, the app still builds for Bluetooth use; onli
 3. Download your Android `google-services.json` into `app/`. It is intentionally ignored by Git.
 4. In `app/src/main/java/app/orbit/finder/online/FirebaseConnection.kt`, replace the expected project ID (`orbit-945f6`) and `DATABASE_URL` with your own project and database URL.
 5. Review and deploy `firebase/database.rules.json` to that database. Do not enable public test-mode access.
-6. Rebuild and install the same configured build on both phones.
+6. Register your signing certificate with Firebase App Check's Play Integrity provider. For outside-Play distribution, require device integrity without requiring Play recognition/licensing. Follow Google's current setup instructions, verify legitimate tokens, then enforce App Check for Authentication and Realtime Database.
+7. Rebuild and install the same configured build on both phones. A source/debug build is not automatically authorized to use ORBIT's hosted backend. Connectivity checks fail closed if attestation fails; do not embed debug bypass tokens in distributed APKs.
 
 The Firebase Android client configuration is not an administrator credential, but it is excluded here to keep deployments explicit. Never commit service-account keys, signing keys or authentication tokens. Review provider quotas, abuse controls and billing before distributing your own build widely.
 
@@ -73,7 +76,11 @@ The Firebase Android client configuration is not an administrator credential, bu
 
 Pairing pins a device's signing identity. GPS metadata is exchanged in signed messages, and automatic upgrades are limited to already trusted identities. Coordinates are encrypted on-device before relay storage. Database rules deny public access and require bilateral, fresh consent for location access. Sharing does not start merely because setup or connectivity checks run.
 
-The relay still sees authentication identifiers and traffic metadata. Map tile requests reveal the viewed map area to the tile provider. Encryption and rules are not a substitute for an independent security audit; production hardening, abuse prevention and App Check remain future work. Losing app data/keys can require re-pairing.
+The relay still sees authentication identifiers and traffic metadata. Map tile requests reveal the viewed map area to the tile provider, and cached map tiles can retain that area locally. App Check and rules reduce abuse but are not a substitute for independent security review, rate limiting and operational monitoring. Static pairwise ECDH does not provide forward secrecy. Losing app data/keys requires re-pairing. See [security review](SECURITY-REVIEW.md) for residual risks.
+
+### Build a signed release
+
+Create and securely back up your own keystore with alias `orbit-release`; never commit it. Set `ORBIT_KEYSTORE_PATH` and `ORBIT_KEYSTORE_PASSWORD` in your local environment, then run `./gradlew assembleRelease`. Without these environment variables the release is unsigned. The project owner's signing key is deliberately not in this repository. For release instrumentation, also pass `-PorbitTestBuildType=release` and build `assembleReleaseAndroidTest`.
 
 ## Tests and verification
 
@@ -85,7 +92,9 @@ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w app.orbit.finder.test/app.orbit.finder.PairingInstrumentation
 ```
 
-For 0.6.0, 19 JVM tests, Android lint and APK builds passed. On one physical Android phone, instrumentation verified real Android Keystore signatures, signed GPS metadata exchange, trusted automatic upgrades, rejection of untrusted upgrades, framing, acceptance/decline and notification delivery. **Pairing transport in those protocol tests was simulated**, so this does not establish two-phone radio behavior.
+For 0.6.1, 19 JVM tests, release lint and APK builds passed. On one physical Android phone, instrumentation verified real Android Keystore signatures, ECDH/AES-GCM with tamper and wrong-recipient rejection, signed GPS metadata exchange, trusted automatic upgrades, rejection of untrusted upgrades, framing, acceptance/decline and notification delivery. **Pairing transport in those protocol tests was simulated**, so this does not establish two-phone radio behavior.
+
+Live release tests verified Play Integrity attestation, successful attested Authentication/Database reads and rejection of identical unattested reads. No physical coordinates were collected. The local database emulator passed 24 rule assertions. The `appCheckChecks` instrumentation option performs read-only live checks; review it before running it against your own configured backend.
 
 The current two-phone automatic-upgrade/map test and outdoor distance/heading field test remain pending. Earlier versions received two-phone testing, but that does not replace verification of this version. Some instrumentation classes exercise live services; review them before running.
 

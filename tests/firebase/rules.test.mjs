@@ -9,6 +9,10 @@ try {
   await assertFails(set(ref(guest,'consents/alice/bob'),serverTimestamp()));
   await assertFails(set(ref(b,'consents/alice/bob'),serverTimestamp()));
   await assertFails(set(ref(a,'locations/alice/bob'),payload()));
+  await assertFails(get(ref(guest,'/')));
+  await assertFails(get(ref(a,'consents/alice')));
+  await assertFails(set(ref(a,'consents/alice/alice'),serverTimestamp()));
+  await assertFails(set(ref(a,'unexpected/alice'),true));
   await assertSucceeds(set(ref(a,'consents/alice/bob'),serverTimestamp()));
   await assertFails(set(ref(a,'locations/alice/bob'),payload()));
   await assertSucceeds(set(ref(b,'consents/bob/alice'),serverTimestamp()));
@@ -26,5 +30,5 @@ try {
   await assertSucceeds(remove(ref(a,'locations/alice/bob')));
   await env.withSecurityRulesDisabled(async ctx=>set(ref(ctx.database(),'consents/bob/alice'),Date.now()-31000));
   await assertFails(set(ref(a,'locations/alice/bob'),payload()));
-  console.log('PASS: 20 rule assertions: public/third-party denial, bilateral consent, ownership, schema/size limits, future/expired consent and revocation. Synthetic data only.');
+  console.log('PASS: 24 rule assertions: public/root/third-party denial, bilateral consent, ownership, self-consent denial, unknown-path denial, schema/size limits, future/expired consent and revocation. Synthetic data only.');
 } finally { await env.cleanup(); }

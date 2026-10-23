@@ -73,7 +73,9 @@ class IdentityStore(private val context: Context, private val alias: String = "o
         require(uid.isEmpty() || uid.matches(Regex("[A-Za-z0-9_-]{1,128}"))) { "Invalid Firebase identity" }
         val gpsKey = body.optString("gpsKey")
         require(gpsKey.length <= 200 && (uid.isEmpty() == gpsKey.isEmpty())) { "Invalid GPS identity" }
-        PairingPayload(id, body.getString("name"), DeviceIcon.valueOf(body.getString("icon")), pk, exp, uid, gpsKey)
+        val name = body.getString("name")
+        require(name.isNotBlank() && name.length <= 40 && name.none { it.isISOControl() }) { "Invalid device name" }
+        PairingPayload(id, name, DeviceIcon.valueOf(body.getString("icon")), pk, exp, uid, gpsKey)
     }
 
     fun defaultDeviceName(): String = runCatching {

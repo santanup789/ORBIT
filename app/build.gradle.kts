@@ -16,13 +16,26 @@ android {
         applicationId = "app.orbit.finder"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.6.0"
+        versionCode = 13
+        versionName = "0.6.1"
         testInstrumentationRunner = "app.orbit.finder.PairingInstrumentation"
     }
     buildFeatures { compose = true; buildConfig = true }
+    testBuildType = providers.gradleProperty("orbitTestBuildType").getOrElse("debug")
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    buildTypes { release { isMinifyEnabled = false } }
+    signingConfigs {
+        create("distribution") {
+            System.getenv("ORBIT_KEYSTORE_PATH")?.let { storeFile = file(it) }
+            storePassword = System.getenv("ORBIT_KEYSTORE_PASSWORD")
+            keyAlias = "orbit-release"
+            keyPassword = System.getenv("ORBIT_KEYSTORE_PASSWORD")
+        }
+    }
+    buildTypes { release {
+        isMinifyEnabled = false
+        isDebuggable = false
+        if (System.getenv("ORBIT_KEYSTORE_PATH") != null) signingConfig = signingConfigs.getByName("distribution")
+    } }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
 }
@@ -32,6 +45,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
     implementation("org.osmdroid:osmdroid-android:6.1.20")
     val composeBom = platform("androidx.compose:compose-bom:2025.01.01")
     implementation(composeBom)

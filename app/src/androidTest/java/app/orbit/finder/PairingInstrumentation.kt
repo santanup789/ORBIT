@@ -15,6 +15,8 @@ class PairingInstrumentation : Instrumentation() {
     private var arguments = Bundle()
     override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); this.arguments = arguments ?: Bundle(); start() }
     override fun onStart() {
+        runOnMainSync { callApplicationOnCreate(targetContext.applicationContext as OrbitApplication) }
+        if (arguments.containsKey("appCheckChecks")) { AppCheckInstrumentation.run(this); return }
         if (arguments.containsKey("connectionChecks")) { ConnectionInstrumentation.run(this); return }
         if (arguments.containsKey("scanRecovery")) { ScanRecoveryInstrumentation.run(this); return }
         if (arguments.containsKey("gpsMode")) { GpsInstrumentation.run(this, arguments); return }
@@ -37,6 +39,8 @@ class PairingInstrumentation : Instrumentation() {
                 val ap = b.parseQr(a.createQr("Test A", DeviceIcon.ORB)).getOrThrow()
                 val bp = a.parseQr(b.createQr("Test B", DeviceIcon.PHONE)).getOrThrow()
                 check(a.parseQr(a.createQr("Self", DeviceIcon.ORB)).isFailure)
+                check(a.parseQr(b.createQr("Bad\nname", DeviceIcon.PHONE)).isFailure)
+                check(a.parseQr(b.createQr(" ", DeviceIcon.PHONE)).isFailure)
                 check(a.verifyMessage(b.signMessage("{\"test\":1}"), bp.publicKey).getInt("test") == 1)
                 check(runCatching { a.verifyMessage(b.signMessage("{\"test\":1}").replace("test", "evil"), bp.publicKey) }.isFailure)
                 var ac = 0; var bc = 0; var incoming: PairingRequest? = null
@@ -49,6 +53,19 @@ class PairingInstrumentation : Instrumentation() {
                 var linkedA = 0; var linkedB = 0
                 val gpsA = app.orbit.finder.online.GpsCrypto("orbit_test_link_a").publicKey()
                 val gpsB = app.orbit.finder.online.GpsCrypto("orbit_test_link_b").publicKey()
+                val secretA = app.orbit.finder.online.GpsCrypto("orbit_test_link_a").key(gpsB)
+                val secretB = app.orbit.finder.online.GpsCrypto("orbit_test_link_b").key(gpsA)
+                try {
+                    check(secretA.contentEquals(secretB))
+                    val crypto = app.orbit.finder.online.GpsCrypto
+                    val encrypted = crypto.encrypt(secretA, "synthetic-security-test", "a>b")
+                    check(crypto.decrypt(secretB, encrypted, "a>b") == "synthetic-security-test")
+                    check(runCatching { crypto.decrypt(secretB, encrypted, "b>a") }.isFailure)
+                    val tampered = crypto.unb64(encrypted)
+                    tampered[tampered.lastIndex] = (tampered.last().toInt() xor 1).toByte()
+                    check(runCatching { crypto.decrypt(secretB, crypto.b64(tampered), "a>b") }.isFailure)
+                    report.putString("crypto", "PASS: ECDH agreement, AES-GCM round trip, wrong-recipient AAD and tamper rejection; malformed names rejected.")
+                } finally { secretA.fill(0); secretB.fill(0) }
                 cb = PairingCoordinator(b, { _, p -> packets.add(false to p) }, { _, _ -> }, {}, { incoming = it }, {}, { check(it.firebaseUid == "test-a"); bc++ }, statuses::add,
                     localPayload = { b.createQr("Test B", DeviceIcon.PHONE, "test-b", gpsB) },
                     isTrusted = { allowUpgrade && it.id == ap.id && it.publicKey == ap.publicKey }, onLinked = { check(it.firebaseUid == "test-a"); linkedB++ })

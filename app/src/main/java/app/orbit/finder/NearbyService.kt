@@ -6,6 +6,14 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 class OrbitApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        // Install before any Auth/Database use. No embedded debug bypass tokens.
+        if (com.google.firebase.FirebaseApp.initializeApp(this) != null) {
+            com.google.firebase.appcheck.FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+                com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory.getInstance())
+        }
+    }
     val model by lazy { OrbitViewModel(this) }
 }
 

@@ -157,9 +157,9 @@ class GpsRelay(private val context: Context, private val update: (GpsUi) -> Unit
                         val body = JSONObject(GpsCrypto.decrypt(key!!, packet, "$peerUid>$uid"))
                         require(body.getString("from") == peerUid && body.getString("to") == uid)
                         val sample = GeoFix(body.getDouble("lat"), body.getDouble("lon"), body.getDouble("accuracy").toFloat(), body.getLong("time") - offset, body.optString("provider", "Location"))
-                        require(sample.valid())
+                        require(sample.fresh(System.currentTimeMillis())) { "Stale or future GPS sample" }
                         if (sample.time >= (state.peer?.time ?: 0)) emit(state.copy(peer = sample))
-                    }.onFailure { emit(state.copy(peer = null, status = "Rejected invalid GPS data. Scan each other's GPS QR again.")) }
+                    }.onFailure { emit(state.copy(peer = null, status = "Rejected invalid or outdated GPS data. Waiting for a fresh location.")) }
                 }
                 override fun onCancelled(error: DatabaseError) {
                     if (attempt == generation) { remoteObserver = null; failure = "Unable to receive your friend’s location. Please retry."; reconcile() }
