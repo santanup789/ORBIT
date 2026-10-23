@@ -1,0 +1,27 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "consents": {
+      "$owner": {
+        "$peer": {
+          ".read": "auth != null && (auth.uid === $owner || auth.uid === $peer)",
+          ".write": "auth != null && auth.uid === $owner && $owner !== $peer",
+          ".validate": "newData.isNumber() && newData.val() >= now - 5000 && newData.val() <= now + 1000"
+        }
+      }
+    },
+    "locations": {
+      "$owner": {
+        "$peer": {
+          ".read": "auth != null && (auth.uid === $owner || (auth.uid === $peer && root.child('consents').child($owner).child($peer).val() > now - 30000 && root.child('consents').child($peer).child($owner).val() > now - 30000))",
+          ".write": "auth != null && auth.uid === $owner && $owner !== $peer && (!newData.exists() || (root.child('consents').child($owner).child($peer).val() > now - 30000 && root.child('consents').child($peer).child($owner).val() > now - 30000))",
+          ".validate": "newData.hasChildren(['cipher','updated'])",
+          "cipher": {".validate": "newData.isString() && newData.val().length >= 28 && newData.val().length <= 4096"},
+          "updated": {".validate": "newData.isNumber() && newData.val() >= now - 5000 && newData.val() <= now + 1000"},
+          "$other": {".validate": false}
+        }
+      }
+    }
+  }
+}

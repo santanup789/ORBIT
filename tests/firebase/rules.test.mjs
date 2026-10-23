@@ -1,0 +1,30 @@
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { ref, get, set, serverTimestamp, remove } from 'firebase/database';
+import { readFile } from 'node:fs/promises';
+const env = await initializeTestEnvironment({projectId:'demo-orbit-gps', database:{host:'127.0.0.1',port:9000,rules:await readFile('firebase/database.rules.json','utf8')}});
+try {
+  const a=env.authenticatedContext('alice').database(), b=env.authenticatedContext('bob').database(), c=env.authenticatedContext('charlie').database(), guest=env.unauthenticatedContext().database();
+  const payload=()=>({cipher:'synthetic-encrypted-packet-for-rule-test-only',updated:serverTimestamp()});
+  await assertFails(get(ref(guest,'locations/alice/bob')));
+  await assertFails(set(ref(guest,'consents/alice/bob'),serverTimestamp()));
+  await assertFails(set(ref(b,'consents/alice/bob'),serverTimestamp()));
+  await assertFails(set(ref(a,'locations/alice/bob'),payload()));
+  await assertSucceeds(set(ref(a,'consents/alice/bob'),serverTimestamp()));
+  await assertFails(set(ref(a,'locations/alice/bob'),payload()));
+  await assertSucceeds(set(ref(b,'consents/bob/alice'),serverTimestamp()));
+  await assertSucceeds(set(ref(a,'locations/alice/bob'),payload()));
+  await assertSucceeds(get(ref(b,'locations/alice/bob')));
+  await assertFails(get(ref(c,'locations/alice/bob')));
+  await assertFails(get(ref(b,'locations/alice')));
+  await assertFails(set(ref(b,'locations/alice/bob'),payload()));
+  await assertFails(set(ref(a,'locations/alice/bob'),{...payload(),latitude:12}));
+  await assertFails(set(ref(a,'locations/alice/bob'),{cipher:'x'.repeat(4097),updated:serverTimestamp()}));
+  await assertFails(set(ref(a,'consents/alice/bob'),Date.now()+120000));
+  await assertSucceeds(remove(ref(b,'consents/bob/alice')));
+  await assertFails(get(ref(b,'locations/alice/bob')));
+  await assertFails(set(ref(a,'locations/alice/bob'),payload()));
+  await assertSucceeds(remove(ref(a,'locations/alice/bob')));
+  await env.withSecurityRulesDisabled(async ctx=>set(ref(ctx.database(),'consents/bob/alice'),Date.now()-31000));
+  await assertFails(set(ref(a,'locations/alice/bob'),payload()));
+  console.log('PASS: 20 rule assertions: public/third-party denial, bilateral consent, ownership, schema/size limits, future/expired consent and revocation. Synthetic data only.');
+} finally { await env.cleanup(); }
